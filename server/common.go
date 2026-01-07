@@ -344,6 +344,13 @@ type RequestContext struct {
 // GetTokenAndBody 通用的token获取和请求体读取
 // 返回: tokenInfo, requestBody, error
 func (rc *RequestContext) GetTokenAndBody() (types.TokenInfo, []byte, error) {
+	// 检查 AuthService 是否可用
+	if rc.AuthService == nil {
+		logger.Error("服务未配置Token，请通过Dashboard配置")
+		respondError(rc.GinContext, http.StatusServiceUnavailable, "%s", "服务未配置Token，请通过Dashboard配置后重启服务")
+		return types.TokenInfo{}, nil, fmt.Errorf("AuthService未初始化")
+	}
+
 	// 获取token
 	tokenInfo, err := rc.AuthService.GetToken()
 	if err != nil {
@@ -376,6 +383,13 @@ func (rc *RequestContext) GetTokenAndBody() (types.TokenInfo, []byte, error) {
 // GetTokenWithUsageAndBody 获取token（包含使用信息）和请求体
 // 返回: tokenWithUsage, requestBody, error
 func (rc *RequestContext) GetTokenWithUsageAndBody() (*types.TokenWithUsage, []byte, error) {
+	// 检查 AuthService 是否可用
+	if rc.AuthService == nil {
+		logger.Error("服务未配置Token，请通过Dashboard配置")
+		respondError(rc.GinContext, http.StatusServiceUnavailable, "%s", "服务未配置Token，请通过Dashboard配置后重启服务")
+		return nil, nil, fmt.Errorf("AuthService未初始化")
+	}
+
 	// 获取token（包含使用信息）
 	tokenWithUsage, err := rc.AuthService.GetTokenWithUsage()
 	if err != nil {
