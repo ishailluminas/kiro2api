@@ -28,7 +28,7 @@ services:
       # 挂载配置文件目录（持久化，重启不丢失）
       - ./config:/app/config:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/v1/models"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3
