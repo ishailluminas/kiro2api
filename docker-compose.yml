@@ -9,8 +9,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Token配置 (JSON格式，支持多账号池和双认证方式)
-      - KIRO_AUTH_TOKEN=${KIRO_AUTH_TOKEN}
+      # Token配置（指向挂载的配置文件）
+      - KIRO_AUTH_TOKEN=${KIRO_AUTH_TOKEN:-/app/config/auth_config.json}
       # 客户端认证Token
       - KIRO_CLIENT_TOKEN=${KIRO_CLIENT_TOKEN:-123456}
       # Dashboard 登录认证
@@ -25,13 +25,11 @@ services:
       - LOG_CONSOLE=${LOG_CONSOLE:-true}
       - LOG_FILE=${LOG_FILE:-}
     volumes:
-      - aws_sso_cache:/home/appuser/.aws/sso/cache
+      # 挂载配置文件目录（持久化，重启不丢失）
+      - ./config:/app/config:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/v1/models"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-volumes:
-  aws_sso_cache:
