@@ -90,8 +90,8 @@ func refreshIdCToken(authConfig AuthConfig) (types.TokenInfo, error) {
 		return types.TokenInfo{}, fmt.Errorf("创建IdC请求失败: %v", err)
 	}
 
-	// 应用动态OIDC请求头 (反风控优化，模拟浏览器)
-	utils.ApplyOIDCHeaders(req)
+	// 应用动态OIDC请求头 (Kiro 0.8.0 格式，使用 refreshToken 生成机器码)
+	utils.ApplyOIDCHeadersWithToken(req, authConfig.RefreshToken)
 	utils.MaybeSleepJitter()
 
 	client := utils.SharedHTTPClient
