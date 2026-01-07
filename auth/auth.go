@@ -24,6 +24,17 @@ func NewAuthService() (*AuthService, error) {
 		return nil, fmt.Errorf("加载配置失败: %w", err)
 	}
 
+	return newAuthServiceWithConfigs(configs)
+}
+
+// NewAuthServiceFromConfigs 使用指定配置创建认证服务（用于热重载时重新初始化）
+func NewAuthServiceFromConfigs(configs []AuthConfig) (*AuthService, error) {
+	logger.Info("使用指定配置创建AuthService实例")
+	return newAuthServiceWithConfigs(configs)
+}
+
+// newAuthServiceWithConfigs 内部函数：使用配置创建AuthService
+func newAuthServiceWithConfigs(configs []AuthConfig) (*AuthService, error) {
 	// 允许空配置启动（可以通过Dashboard添加）
 	if len(configs) == 0 {
 		logger.Warn("AuthService以空配置启动，API请求将返回错误直到添加有效账户")

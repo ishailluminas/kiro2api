@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ type AuthConfigManager struct {
 var globalAuthConfigManager *AuthConfigManager
 var authConfigManagerOnce sync.Once
 var attachedAuthService *auth.AuthService
+var attachedAuthServiceMu sync.RWMutex
 
 // GetAuthConfigManager 获取全局配置管理器实例
 func GetAuthConfigManager() *AuthConfigManager {
@@ -32,6 +34,33 @@ func GetAuthConfigManager() *AuthConfigManager {
 		globalAuthConfigManager = &AuthConfigManager{}
 	})
 	return globalAuthConfigManager
+}
+
+// GetAttachedAuthService 线程安全地获取 AuthService
+func GetAttachedAuthService() *auth.AuthService {
+	attachedAuthServiceMu.RLock()
+	defer attachedAuthServiceMu.RUnlock()
+	return attachedAuthService
+}
+
+// SetAttachedAuthService 线程安全地设置 AuthService
+func SetAttachedAuthService(service *auth.AuthService) {
+	attachedAuthServiceMu.Lock()
+	defer attachedAuthServiceMu.Unlock()
+	attachedAuthService = service
+}
+
+// isFilePath 判断字符串是否为文件路径（而非内联JSON）
+func isFilePathString(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	// 如果以 { 或 [ 开头，则是内联JSON
+	if trimmed[0] == '{' || trimmed[0] == '[' {
+		return false
+	}
+	return true
 }
 
 // SetConfigPath 设置配置文件路径
@@ -505,7 +534,7 @@ func handleSaveAllAuthConfigs(c *gin.Context) {
 
 // getConfigSourceInfo 获取配置源信息
 func getConfigSourceInfo() map[string]interface{} {
-	envPath := os.Getenv("KIRO_AUTH_TOKEN")
+	envPath := strings.TrimSpace(os.Getenv("KIRO_AUTH_TOKEN"))
 
 	if envPath == "" {
 		// 没有环境变量，使用默认配置文件
@@ -517,37 +546,39 @@ func getConfigSourceInfo() map[string]interface{} {
 		}
 	}
 
-	// 检查是否是文件路径
-	if fileInfo, err := os.Stat(envPath); err == nil && !fileInfo.IsDir() {
-		absPath, _ := filepath.Abs(envPath)
+	// 判断是内联JSON还是文件路径
+	if !isFilePathString(envPath) {
+		// 环境变量是 JSON 字符串，但我们仍然支持文件操作
+		// 会自动创建 auth_config.json 并在保存时更新环境变量指向该文件
 		return map[string]interface{}{
 			"type":         "file",
-			"path":         absPath,
+			"path":         "auth_config.json",
 			"canHotReload": true,
 			"canImport":    true,
+			"note":         "配置将保存到 auth_config.json 文件",
 		}
 	}
 
-	// 环境变量是 JSON 字符串，但我们仍然支持文件操作
-	// 会自动创建 auth_config.json 并在保存时更新环境变量指向该文件
+	// 是文件路径
+	absPath, err := filepath.Abs(envPath)
+	if err != nil {
+		absPath = envPath
+	}
 	return map[string]interface{}{
 		"type":         "file",
-		"path":         "auth_config.json",
+		"path":         absPath,
 		"canHotReload": true,
 		"canImport":    true,
-		"note":         "配置将保存到 auth_config.json 文件",
 	}
 }
 
 // getConfigFilePath 获取配置文件路径
 func getConfigFilePath() string {
 	// 优先使用环境变量中的路径
-	envPath := os.Getenv("KIRO_AUTH_TOKEN")
-	if envPath != "" {
-		// 检查是否是文件路径
-		if fileInfo, err := os.Stat(envPath); err == nil && !fileInfo.IsDir() {
-			return envPath
-		}
+	envPath := strings.TrimSpace(os.Getenv("KIRO_AUTH_TOKEN"))
+	if envPath != "" && isFilePathString(envPath) {
+		// 是文件路径，直接返回（即使文件不存在也返回，以便后续创建）
+		return envPath
 	}
 
 	// 默认配置文件路径
@@ -908,11 +939,8 @@ func createClientIDPreview(clientID string) string {
 
 // reloadAttachedAuthService 重新加载配置并刷新AuthService
 // 返回最新的配置列表，用于响应给前端
+// 如果 AuthService 为 nil，会尝试创建新的实例
 func reloadAttachedAuthService() ([]auth.AuthConfig, error) {
-	if attachedAuthService == nil {
-		return nil, fmt.Errorf("AuthService未初始化，无法热重载")
-	}
-
 	// 从文件加载所有配置
 	allConfigs, err := loadConfigsFromFile()
 	if err != nil {
@@ -934,8 +962,24 @@ func reloadAttachedAuthService() ([]auth.AuthConfig, error) {
 		validConfigs = append(validConfigs, cfg)
 	}
 
+	currentService := GetAttachedAuthService()
+	if currentService == nil {
+		// AuthService 为 nil，尝试创建新实例
+		if len(validConfigs) == 0 {
+			logger.Warn("没有有效配置，无法创建AuthService")
+			return allConfigs, nil
+		}
+		newService, err := auth.NewAuthServiceFromConfigs(validConfigs)
+		if err != nil {
+			return nil, fmt.Errorf("创建AuthService失败: %w", err)
+		}
+		SetAttachedAuthService(newService)
+		logger.Info("动态创建AuthService成功", logger.Int("config_count", len(validConfigs)))
+		return allConfigs, nil
+	}
+
 	// 重载AuthService（即使是空配置也要重载，以便清空旧的token）
-	if err := attachedAuthService.ReloadConfigs(validConfigs); err != nil {
+	if err := currentService.ReloadConfigs(validConfigs); err != nil {
 		return nil, err
 	}
 
@@ -945,7 +989,7 @@ func reloadAttachedAuthService() ([]auth.AuthConfig, error) {
 // RegisterAuthConfigRoutes 注册认证配置管理路由
 // authService: 运行中的认证服务实例，用于热重载配置
 func RegisterAuthConfigRoutes(r *gin.Engine, authService *auth.AuthService) {
-	attachedAuthService = authService
+	SetAttachedAuthService(authService)
 	// 认证配置管理API（需登录）
 	authConfigGroup := r.Group("/api/auth-config", DashboardAuthMiddleware())
 	{

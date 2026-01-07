@@ -77,16 +77,17 @@ func StartServer(port string, authToken string, authService *auth.AuthService) {
 	})
 
 	r.POST("/v1/messages", func(c *gin.Context) {
-		// 检查 AuthService 是否可用
-		if authService == nil {
-			respondError(c, http.StatusServiceUnavailable, "%s", "服务未配置Token，请通过Dashboard配置后重启服务")
+		// 动态获取 AuthService（支持热重载后的新实例）
+		currentAuthService := GetAttachedAuthService()
+		if currentAuthService == nil {
+			respondError(c, http.StatusServiceUnavailable, "%s", "服务未配置Token，请通过Dashboard配置后刷新页面")
 			return
 		}
 
 		// 使用RequestContext统一处理token获取和请求体读取
 		reqCtx := &RequestContext{
 			GinContext:  c,
-			AuthService: authService,
+			AuthService: currentAuthService,
 			RequestType: "Anthropic",
 		}
 
@@ -187,16 +188,17 @@ func StartServer(port string, authToken string, authService *auth.AuthService) {
 
 	// 新增：OpenAI兼容的 /v1/chat/completions 端点
 	r.POST("/v1/chat/completions", func(c *gin.Context) {
-		// 检查 AuthService 是否可用
-		if authService == nil {
-			respondError(c, http.StatusServiceUnavailable, "%s", "服务未配置Token，请通过Dashboard配置后重启服务")
+		// 动态获取 AuthService（支持热重载后的新实例）
+		currentAuthService := GetAttachedAuthService()
+		if currentAuthService == nil {
+			respondError(c, http.StatusServiceUnavailable, "%s", "服务未配置Token，请通过Dashboard配置后刷新页面")
 			return
 		}
 
 		// 使用RequestContext统一处理token获取和请求体读取
 		reqCtx := &RequestContext{
 			GinContext:  c,
-			AuthService: authService,
+			AuthService: currentAuthService,
 			RequestType: "OpenAI",
 		}
 
