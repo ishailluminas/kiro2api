@@ -165,6 +165,10 @@ func buildCodeWhispererRequest(c *gin.Context, anthropicReq types.AnthropicReque
 		return nil, fmt.Errorf("创建请求失败: %v", err)
 	}
 
+	machineID := config.MachineID
+	kiroVersion := config.KiroIDETag
+	invocationID := utils.GenerateUUID()
+
 	req.Header.Set("Authorization", "Bearer "+tokenInfo.AccessToken)
 	req.Header.Set("Content-Type", "application/json")
 	if isStream {
@@ -173,8 +177,11 @@ func buildCodeWhispererRequest(c *gin.Context, anthropicReq types.AnthropicReque
 
 	// 添加上游请求必需的header
 	req.Header.Set("x-amzn-kiro-agent-mode", "spec")
-	req.Header.Set("x-amz-user-agent", "aws-sdk-js/1.0.18 KiroIDE-0.2.13-66c23a8c5d15afabec89ef9954ef52a119f10d369df04d548fc6c1eac694b0d1")
-	req.Header.Set("user-agent", "aws-sdk-js/1.0.18 ua/2.1 os/darwin#25.0.0 lang/js md/nodejs#20.16.0 api/codewhispererstreaming#1.0.18 m/E KiroIDE-0.2.13-66c23a8c5d15afabec89ef9954ef52a119f10d369df04d548fc6c1eac694b0d1")
+	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE-%s-%s", kiroVersion, machineID))
+	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/codewhispererstreaming#1.0.18 m/E KiroIDE-%s-%s", kiroVersion, machineID))
+	req.Header.Set("x-kiro-machine-id", machineID)
+	req.Header.Set("amz-sdk-invocation-id", invocationID)
+	req.Header.Set("amz-sdk-request", "attempt=1; max=2")
 
 	return req, nil
 }

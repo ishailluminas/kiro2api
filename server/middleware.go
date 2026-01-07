@@ -1,14 +1,127 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"kiro2api/logger"
 	"kiro2api/utils"
 
 	"github.com/gin-gonic/gin"
 )
+
+const dashboardTokenTTL = 12 * time.Hour
+
+type dashboardSessionStore struct {
+	mu     sync.RWMutex
+	tokens map[string]time.Time
+}
+
+var dashboardSessions = &dashboardSessionStore{
+	tokens: make(map[string]time.Time),
+}
+
+func issueDashboardToken() (string, time.Time, error) {
+	token, err := newDashboardToken()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	now := time.Now()
+	expiresAt := now.Add(dashboardTokenTTL)
+	dashboardSessions.set(token, expiresAt)
+	dashboardSessions.prune(now)
+	return token, expiresAt, nil
+}
+
+func validateDashboardToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	return dashboardSessions.valid(token, time.Now())
+}
+
+func newDashboardToken() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func (s *dashboardSessionStore) set(token string, expiresAt time.Time) {
+	s.mu.Lock()
+	s.tokens[token] = expiresAt
+	s.mu.Unlock()
+}
+
+func (s *dashboardSessionStore) valid(token string, now time.Time) bool {
+	s.mu.RLock()
+	expiresAt, ok := s.tokens[token]
+	s.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	if now.After(expiresAt) {
+		s.mu.Lock()
+		delete(s.tokens, token)
+		s.mu.Unlock()
+		return false
+	}
+	return true
+}
+
+func (s *dashboardSessionStore) prune(now time.Time) {
+	s.mu.Lock()
+	for token, expiresAt := range s.tokens {
+		if now.After(expiresAt) {
+			delete(s.tokens, token)
+		}
+	}
+	s.mu.Unlock()
+}
+
+func extractDashboardToken(c *gin.Context) string {
+	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+	if authHeader == "" {
+		return ""
+	}
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	}
+	return authHeader
+}
+
+// DashboardAuthMiddleware 保护仪表盘管理API
+func DashboardAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := extractDashboardToken(c)
+		if token == "" {
+			logger.Warn("仪表盘认证缺少token",
+				addReqFields(c,
+					logger.String("path", c.Request.URL.Path),
+				)...)
+			respondError(c, http.StatusUnauthorized, "%s", "未登录")
+			c.Abort()
+			return
+		}
+
+		if !validateDashboardToken(token) {
+			logger.Warn("仪表盘认证token无效",
+				addReqFields(c,
+					logger.String("path", c.Request.URL.Path),
+				)...)
+			respondError(c, http.StatusUnauthorized, "%s", "登录已失效")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
 
 // PathBasedAuthMiddleware 创建基于路径的API密钥验证中间件
 func PathBasedAuthMiddleware(authToken string, protectedPrefixes []string) gin.HandlerFunc {

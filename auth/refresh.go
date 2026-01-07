@@ -40,6 +40,8 @@ func refreshSocialToken(refreshToken string) (types.TokenInfo, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", fmt.Sprintf("kiro-account-manager/%s (desktop) machine/%s", config.KiroIDETag, config.MachineID))
+	req.Header.Set("x-kiro-machine-id", config.MachineID)
 
 	client := utils.SharedHTTPClient
 	resp, err := client.Do(req)
@@ -92,12 +94,16 @@ func refreshIdCToken(authConfig AuthConfig) (types.TokenInfo, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Host", "oidc.us-east-1.amazonaws.com")
 	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("x-amz-user-agent", "aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "*")
-	req.Header.Set("sec-fetch-mode", "cors")
-	req.Header.Set("User-Agent", "node")
-	req.Header.Set("Accept-Encoding", "br, gzip, deflate")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Origin", "https://app.kiro")
+	req.Header.Set("Referer", "https://app.kiro/")
+	req.Header.Set("x-kiro-machine-id", config.MachineID)
+	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE-%s-%s", config.KiroIDETag, config.MachineID))
+	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/sso-oidc#1.0.0 m/E KiroIDE-%s-%s", config.KiroIDETag, config.MachineID))
+	req.Header.Set("amz-sdk-invocation-id", utils.GenerateUUID())
+	req.Header.Set("amz-sdk-request", "attempt=1; max=2")
 
 	client := utils.SharedHTTPClient
 	resp, err := client.Do(req)

@@ -1,10 +1,12 @@
 package server
 
 import (
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -607,9 +609,11 @@ func handleTokenPoolAPI(c *gin.Context) {
 			}
 		}
 
-		// 如果token不可用，标记状态
+		// 如果token不可用，标记状态并自动保存到配置文件
 		if available <= 0 {
 			tokenData["status"] = "exhausted"
+			// 异步标记配置为已耗尽
+			go markConfigAsExhausted(i)
 		} else {
 			activeCount++
 		}
@@ -640,6 +644,17 @@ func handleTokenPoolAPI(c *gin.Context) {
 	})
 }
 
+// handleMetaInfo 返回仪表盘元信息（伪装机器码、路径等）
+func handleMetaInfo(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"machine_id":            config.MachineID,
+		"kiro_version":          config.KiroIDETag,
+		"special_accounts_path": config.SpecialAccountsPath,
+		"config_path":           getConfigFilePath(),
+		"timestamp":             time.Now().Format(time.RFC3339),
+	})
+}
+
 // refreshSingleTokenByConfig 根据配置刷新单个token
 func refreshSingleTokenByConfig(config auth.AuthConfig) (types.TokenInfo, error) {
 	switch config.AuthType {
@@ -653,3 +668,70 @@ func refreshSingleTokenByConfig(config auth.AuthConfig) (types.TokenInfo, error)
 }
 
 // 已移除复杂的token数据收集函数，现在使用简单的内存数据读取
+
+type dashboardLoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func handleDashboardLogin(c *gin.Context) {
+	var req dashboardLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "%s", "无效的登录请求")
+		return
+	}
+
+	req.Username = strings.TrimSpace(req.Username)
+	if req.Username == "" || req.Password == "" {
+		respondError(c, http.StatusBadRequest, "%s", "用户名或密码不能为空")
+		return
+	}
+
+	username, password, ok := getDashboardCredentials()
+	if !ok {
+		logger.Warn("Dashboard认证未配置")
+		respondError(c, http.StatusInternalServerError, "%s", "Dashboard认证未配置")
+		return
+	}
+
+	if !validateDashboardCredentials(req.Username, req.Password, username, password) {
+		logger.Warn("Dashboard登录失败",
+			addReqFields(c,
+				logger.String("username", req.Username),
+			)...)
+		respondError(c, http.StatusUnauthorized, "%s", "用户名或密码错误")
+		return
+	}
+
+	token, expiresAt, err := issueDashboardToken()
+	if err != nil {
+		logger.Error("生成Dashboard登录token失败", logger.Err(err))
+		respondError(c, http.StatusInternalServerError, "%s", "生成登录token失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":      token,
+		"token_type": "Bearer",
+		"expires_at": expiresAt.Format(time.RFC3339),
+	})
+}
+
+func getDashboardCredentials() (string, string, bool) {
+	username := strings.TrimSpace(os.Getenv("DASHBOARD_USERNAME"))
+	password := os.Getenv("DASHBOARD_PASSWORD")
+	if username == "" || password == "" {
+		return "", "", false
+	}
+	return username, password, true
+}
+
+func validateDashboardCredentials(inputUser, inputPass, expectedUser, expectedPass string) bool {
+	if subtle.ConstantTimeCompare([]byte(inputUser), []byte(expectedUser)) != 1 {
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(inputPass), []byte(expectedPass)) != 1 {
+		return false
+	}
+	return true
+}

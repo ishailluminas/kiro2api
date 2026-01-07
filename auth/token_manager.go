@@ -298,3 +298,28 @@ func generateConfigOrder(configs []AuthConfig) []string {
 
 	return order
 }
+
+// GetExhaustedIndexes 获取已耗尽的配置索引列表
+func (tm *TokenManager) GetExhaustedIndexes() []int {
+	tm.mutex.RLock()
+	defer tm.mutex.RUnlock()
+
+	var indexes []int
+	for key := range tm.exhausted {
+		// 从 cache key 解析索引 (格式: "token_%d")
+		var idx int
+		if _, err := fmt.Sscanf(key, config.TokenCacheKeyFormat, &idx); err == nil {
+			indexes = append(indexes, idx)
+		}
+	}
+	return indexes
+}
+
+// IsConfigExhausted 检查指定索引的配置是否已耗尽
+func (tm *TokenManager) IsConfigExhausted(index int) bool {
+	tm.mutex.RLock()
+	defer tm.mutex.RUnlock()
+
+	cacheKey := fmt.Sprintf(config.TokenCacheKeyFormat, index)
+	return tm.exhausted[cacheKey]
+}

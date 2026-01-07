@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"kiro2api/logger"
@@ -147,5 +149,7 @@ func (c *UsageLimitsChecker) logUsageLimits(limits *types.UsageLimits) {
 
 // generateInvocationID 生成请求ID (简化版本)
 func generateInvocationID() string {
-	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), "kiro2api")
+	b := make([]byte, 8)
+	rand.Read(b)
+	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), hex.EncodeToString(b))
 }

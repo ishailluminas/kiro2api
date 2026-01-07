@@ -45,7 +45,11 @@ func StartServer(port string, authToken string, authService *auth.AuthService) {
 	})
 
 	// API端点 - 纯数据服务
-	r.GET("/api/tokens", handleTokenPoolAPI)
+	r.POST("/api/login", handleDashboardLogin)
+	r.GET("/api/tokens", DashboardAuthMiddleware(), handleTokenPoolAPI)
+
+	// 注册认证配置管理路由（注入AuthService以支持热重载）
+	RegisterAuthConfigRoutes(r, authService)
 
 	// GET /v1/models 端点
 	r.GET("/v1/models", func(c *gin.Context) {

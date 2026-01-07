@@ -1,7 +1,15 @@
-.claude/settings.local.json
+# Claude Code 配置（包含敏感会话信息）
+.claude/
+
+# 编译产物
 kiro2api
+kiro2api.exe
 main
+*.exe
+
+# 环境配置（敏感信息）
 .env
+auth_config.json
 
 # Docker 相关文件
 .env.local
