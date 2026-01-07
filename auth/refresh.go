@@ -90,7 +90,7 @@ func refreshIdCToken(authConfig AuthConfig) (types.TokenInfo, error) {
 		return types.TokenInfo{}, fmt.Errorf("创建IdC请求失败: %v", err)
 	}
 
-	// 设置IdC特殊headers
+	// 设置IdC特殊headers (从 Kiro 0.8.0 源码提取)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Host", "oidc.us-east-1.amazonaws.com")
 	req.Header.Set("Connection", "keep-alive")
@@ -100,8 +100,8 @@ func refreshIdCToken(authConfig AuthConfig) (types.TokenInfo, error) {
 	req.Header.Set("Origin", "https://app.kiro")
 	req.Header.Set("Referer", "https://app.kiro/")
 	req.Header.Set("x-kiro-machine-id", config.MachineID)
-	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE-%s-%s", config.KiroIDETag, config.MachineID))
-	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/sso-oidc#1.0.0 m/E KiroIDE-%s-%s", config.KiroIDETag, config.MachineID))
+	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE %s %s", config.KiroIDETag, config.MachineID))
+	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/sso-oidc#1.0.0 m/E KiroIDE %s %s", config.KiroIDETag, config.MachineID))
 	req.Header.Set("amz-sdk-invocation-id", utils.GenerateUUID())
 	req.Header.Set("amz-sdk-request", "attempt=1; max=2")
 

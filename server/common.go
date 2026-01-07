@@ -175,10 +175,11 @@ func buildCodeWhispererRequest(c *gin.Context, anthropicReq types.AnthropicReque
 		req.Header.Set("Accept", "text/event-stream")
 	}
 
-	// 添加上游请求必需的header
+	// 添加上游请求必需的header (从 Kiro 0.8.0 源码提取)
+	// customUserAgent 格式: "KiroIDE {version} {machineId}"
 	req.Header.Set("x-amzn-kiro-agent-mode", "spec")
-	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE-%s-%s", kiroVersion, machineID))
-	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/codewhispererstreaming#1.0.18 m/E KiroIDE-%s-%s", kiroVersion, machineID))
+	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE %s %s", kiroVersion, machineID))
+	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/codewhispererstreaming#1.0.18 m/E KiroIDE %s %s", kiroVersion, machineID))
 	req.Header.Set("x-kiro-machine-id", machineID)
 	req.Header.Set("amz-sdk-invocation-id", invocationID)
 	req.Header.Set("amz-sdk-request", "attempt=1; max=2")
