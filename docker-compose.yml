@@ -26,7 +26,8 @@ services:
       - LOG_FILE=${LOG_FILE:-}
     volumes:
       # 挂载配置文件目录（持久化，重启不丢失）
-      - ./config:/app/config:ro
+      # 注意：必须是可读写(:rw)，否则 Dashboard 无法保存配置
+      - ./config:/app/config
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
       interval: 30s
