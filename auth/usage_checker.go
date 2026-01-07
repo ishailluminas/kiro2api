@@ -1,17 +1,13 @@
 package auth
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"kiro2api/config"
 	"kiro2api/logger"
 	"kiro2api/types"
 	"kiro2api/utils"
 	"net/http"
 	"net/url"
-	"time"
 )
 
 // UsageLimitsChecker 使用限制检查器 (遵循SRP原则)
@@ -43,15 +39,9 @@ func (c *UsageLimitsChecker) CheckUsageLimits(token types.TokenInfo) (*types.Usa
 		return nil, fmt.Errorf("创建使用限制检查请求失败: %v", err)
 	}
 
-	// 设置请求头 (从 Kiro 0.8.0 源码提取)
-	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE %s %s", config.KiroIDETag, config.MachineID))
-	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/codewhispererruntime#1.0.0 m/E KiroIDE %s %s", config.KiroIDETag, config.MachineID))
-	req.Header.Set("host", "codewhisperer.us-east-1.amazonaws.com")
-	req.Header.Set("x-kiro-machine-id", config.MachineID)
-	req.Header.Set("amz-sdk-invocation-id", generateInvocationID())
-	req.Header.Set("amz-sdk-request", "attempt=1; max=1")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-	req.Header.Set("Connection", "close")
+	// 应用动态请求头 (反风控优化)
+	utils.ApplyUsageCheckHeaders(req, token.AccessToken)
+	utils.MaybeSleepJitter()
 
 	// 发送请求
 	logger.Debug("发送使用限制检查请求",
@@ -147,11 +137,4 @@ func (c *UsageLimitsChecker) logUsageLimits(limits *types.UsageLimits) {
 		logger.String("subscription_type", limits.SubscriptionInfo.Type),
 		logger.String("subscription_title", limits.SubscriptionInfo.SubscriptionTitle),
 		logger.String("user_email", limits.UserInfo.Email))
-}
-
-// generateInvocationID 生成请求ID (简化版本)
-func generateInvocationID() string {
-	b := make([]byte, 8)
-	rand.Read(b)
-	return fmt.Sprintf("%d-%s", time.Now().UnixNano(), hex.EncodeToString(b))
 }

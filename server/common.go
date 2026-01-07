@@ -16,6 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 注：config 包仍需保留用于 config.CodeWhispererURL
+
 // respondErrorWithCode 标准化的错误响应结构
 // 统一返回: {"error": {"message": string, "code": string}}
 func respondErrorWithCode(c *gin.Context, statusCode int, code string, format string, args ...any) {
@@ -165,24 +167,12 @@ func buildCodeWhispererRequest(c *gin.Context, anthropicReq types.AnthropicReque
 		return nil, fmt.Errorf("创建请求失败: %v", err)
 	}
 
-	machineID := config.MachineID
-	kiroVersion := config.KiroIDETag
-	invocationID := utils.GenerateUUID()
-
-	req.Header.Set("Authorization", "Bearer "+tokenInfo.AccessToken)
-	req.Header.Set("Content-Type", "application/json")
-	if isStream {
-		req.Header.Set("Accept", "text/event-stream")
-	}
-
-	// 添加上游请求必需的header (从 Kiro 0.8.0 源码提取)
-	// customUserAgent 格式: "KiroIDE {version} {machineId}"
-	req.Header.Set("x-amzn-kiro-agent-mode", "spec")
-	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE %s %s", kiroVersion, machineID))
-	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/codewhispererstreaming#1.0.18 m/E KiroIDE %s %s", kiroVersion, machineID))
-	req.Header.Set("x-kiro-machine-id", machineID)
-	req.Header.Set("amz-sdk-invocation-id", invocationID)
-	req.Header.Set("amz-sdk-request", "attempt=1; max=2")
+	// 应用动态请求头 (反风控优化)
+	utils.ApplyCodeWhispererHeaders(req, utils.CodeWhispererHeaderOptions{
+		AccessToken: tokenInfo.AccessToken,
+		Stream:      isStream,
+	})
+	utils.MaybeSleepJitter()
 
 	return req, nil
 }

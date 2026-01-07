@@ -39,9 +39,9 @@ func refreshSocialToken(refreshToken string) (types.TokenInfo, error) {
 		return types.TokenInfo{}, fmt.Errorf("创建请求失败: %v", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", fmt.Sprintf("kiro-account-manager/%s (desktop) machine/%s", config.KiroIDETag, config.MachineID))
-	req.Header.Set("x-kiro-machine-id", config.MachineID)
+	// 应用动态请求头 (反风控优化)
+	utils.ApplyAccountManagerHeaders(req)
+	utils.MaybeSleepJitter()
 
 	client := utils.SharedHTTPClient
 	resp, err := client.Do(req)
@@ -90,20 +90,9 @@ func refreshIdCToken(authConfig AuthConfig) (types.TokenInfo, error) {
 		return types.TokenInfo{}, fmt.Errorf("创建IdC请求失败: %v", err)
 	}
 
-	// 设置IdC特殊headers (从 Kiro 0.8.0 源码提取)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Host", "oidc.us-east-1.amazonaws.com")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
-	req.Header.Set("Origin", "https://app.kiro")
-	req.Header.Set("Referer", "https://app.kiro/")
-	req.Header.Set("x-kiro-machine-id", config.MachineID)
-	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 KiroIDE %s %s", config.KiroIDETag, config.MachineID))
-	req.Header.Set("user-agent", fmt.Sprintf("aws-sdk-js/1.0.0 ua/2.1 os/windows lang/js md/nodejs#20.16.0 api/sso-oidc#1.0.0 m/E KiroIDE %s %s", config.KiroIDETag, config.MachineID))
-	req.Header.Set("amz-sdk-invocation-id", utils.GenerateUUID())
-	req.Header.Set("amz-sdk-request", "attempt=1; max=2")
+	// 应用动态OIDC请求头 (反风控优化，模拟浏览器)
+	utils.ApplyOIDCHeaders(req)
+	utils.MaybeSleepJitter()
 
 	client := utils.SharedHTTPClient
 	resp, err := client.Do(req)
