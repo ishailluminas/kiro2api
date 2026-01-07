@@ -10,7 +10,23 @@
 
 ## 核心特性
 
-### 1. Claude Code 原生集成
+### 1. Dashboard 控制台
+
+内置 Glassmorphism 风格的 Web 控制台，提供：
+- **Token 池状态监控**：实时查看各账号使用情况
+- **认证配置管理**：在线编辑 Token 配置
+- **登录保护**：用户名/密码认证，保护敏感操作
+
+```bash
+# 配置 Dashboard 登录凭据
+export DASHBOARD_USERNAME=admin
+export DASHBOARD_PASSWORD=your-secure-password
+
+# 访问控制台
+open http://localhost:8080
+```
+
+### 2. Claude Code 原生集成
 
 ```bash
 # 一行配置，立即享受本地代理
@@ -27,7 +43,7 @@ claude-code --model claude-sonnet-4 "帮我重构这段代码"
 - 工具调用完整支持
 - 多模态图片处理
 
-### 2. 多账号池管理
+### 3. 多账号池管理
 
 ```json
 {
@@ -45,7 +61,7 @@ claude-code --model claude-sonnet-4 "帮我重构这段代码"
 - **故障转移**: 账号用完自动切换到下一个
 - **使用监控**: 实时监控每个账号的使用情况
 
-### 3. 双认证方式支持
+### 4. 双认证方式支持
 
 ```bash
 # Social 认证
@@ -66,7 +82,7 @@ KIRO_AUTH_TOKEN='[
 ]'
 ```
 
-### 4. 图片输入支持（data URL）
+### 5. 图片输入支持（data URL）
 
 ```bash
 # Claude Code 中直接使用图片
@@ -284,9 +300,12 @@ docker exec -it kiro2api sh
 
 ### 支持的端点
 
-- `GET /` - 静态首页（Dashboard）
+- `GET /` - 静态首页（Dashboard 控制台）
 - `GET /static/*` - 静态资源
-- `GET /api/tokens` - Token 池状态与使用信息（无需认证）
+- `POST /api/login` - Dashboard 登录认证
+- `GET /api/tokens` - Token 池状态与使用信息（需登录）
+- `GET /api/auth-config` - 获取认证配置（需登录）
+- `PUT /api/auth-config` - 更新认证配置（需登录）
 - `GET /v1/models` - 获取可用模型列表
 - `POST /v1/messages` - Anthropic Claude API 兼容接口（支持流/非流）
 - `POST /v1/messages/count_tokens` - Token 计数接口
@@ -294,14 +313,25 @@ docker exec -it kiro2api sh
 
 ### 认证方式
 
-所有 `/v1/*` 端点都需要在请求头中提供认证信息（`/api/tokens` 等管理端点无需认证）：
-
+**API 端点认证** (`/v1/*`)：
 ```bash
 # 使用 Authorization Bearer 认证
 Authorization: Bearer your-auth-token
 
 # 或使用 x-api-key 认证
 x-api-key: your-auth-token
+```
+
+**Dashboard 端点认证** (`/api/*`)：
+```bash
+# 先登录获取 token
+curl -X POST http://localhost:8080/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your-password"}'
+
+# 使用返回的 token 访问管理接口
+curl http://localhost:8080/api/tokens \
+  -H "Authorization: Bearer <dashboard-token>"
 ```
 
 ### 请求示例
