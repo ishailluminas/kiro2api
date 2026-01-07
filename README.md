@@ -221,24 +221,25 @@ Token获取方式：
 
 ```bash
 # 方式一：使用 docker-compose（推荐）
+# 1. 准备配置文件（重要：需手动创建并赋权以支持 Dashboard 写入）
+touch auth_config.json
+chmod 666 auth_config.json
+
+# 2. 启动服务
 docker-compose up -d
-
-# 方式二：预构建镜像
-docker run -d \
-  --name kiro2api \
-  -p 8080:8080 \
-  -e KIRO_AUTH_TOKEN='[{"auth":"Social","refreshToken":"your_token"}]' \
-  -e KIRO_CLIENT_TOKEN="123456" \
-  ghcr.io/caidaoli/kiro2api:latest
-
-# 方式三：本地构建
-docker build -t kiro2api .
-docker run -d \
-  --name kiro2api \
-  -p 8080:8080 \
-  --env-file .env \
-  kiro2api
 ```
+
+#### 注意事项（权限与持久化）
+
+由于容器内以非 root 用户 (`appuser`, UID: 1001) 运行，挂载宿主机文件时需要注意权限：
+
+1. **配置文件持久化**：
+   - 建议在部署目录下手动执行：`touch auth_config.json && chmod 666 auth_config.json`
+   - 这样容器内的 Dashboard 才能将配置写回宿主机，确保重启不丢失。
+
+2. **环境变量优先级**：
+   - 如果设置了 `KIRO_AUTH_TOKEN` 为 JSON 字符串，Dashboard 的保存功能将失效（以环境变量为准）。
+   - 建议将 `KIRO_AUTH_TOKEN` 设置为文件路径 `/app/auth_config.json`（默认已在 compose 中配置）。
 
 #### 配置管理
 
